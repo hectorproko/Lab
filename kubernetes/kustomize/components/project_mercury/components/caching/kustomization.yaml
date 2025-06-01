@@ -4,3 +4,6 @@ kind: Component
 resources:
   - redis-depl.yaml
   - redis-service.yaml
+
+patches:
+  - path: api-patch.yaml
