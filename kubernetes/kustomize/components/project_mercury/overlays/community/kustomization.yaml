@@ -3,3 +3,4 @@ bases:
 
 components:
   - ../../components/auth
+  - ../../components/logging
