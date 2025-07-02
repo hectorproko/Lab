@@ -13,7 +13,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
-      - run: npm install
-        working-directory: GitActions/Demo2
-      - run: npm run build
+      - name: Install dependencies    
+        run: npm install
+        working-directory: ./GitActions/Demo2
+      - name: Build  
+        run: npm run build
+        working-directory: ./GitActions/Demo2
       
