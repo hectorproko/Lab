@@ -1,0 +1,129 @@
+# Script: mtt - Move to Trash
+# Purpose: To provide a safe alternative to the rm command in Unix-like systems by moving 
+# files to a Trash directory instead of permanently deleting them, with the ability to restore 
+# files to their original locations, reducing the risk of accidental data loss and enhancing 
+# user experience through recovery capabilities.
+
+#!/bin/bash
+
+# Define Trash directories
+TRASH_DIR="$HOME/.local/share/Trash"
+TRASH_FILES="$TRASH_DIR/files"
+TRASH_INFO="$TRASH_DIR/info"
+
+# Function to create Trash directories if they don't exist
+setup_trash() {
+    mkdir -p "$TRASH_FILES" "$TRASH_INFO"
+}
+
+# Function to get inode of a file
+get_inode() {
+    local file="$1"
+    stat -c %i "$file" 2>/dev/null
+}
+
+# Function to get current datetime in required format
+get_datetime() {
+    date "+%EY%m%d%Z%T"
+}
+
+# Function to check if file is the mtt script itself
+is_mtt_script() {
+    local file="$1"
+    local script_inode=$(get_inode "$0")
+    local file_inode=$(get_inode "$file")
+
+    # Check if inodes match and file is exactly named 'mtt'
+    if [ "$file_inode" = "$script_inode" ] && [ "$(basename "$file")" = "mtt" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to move file to Trash
+move_to_trash() {
+    local file="$1"
+    local basename=$(basename "$file")
+
+    # Error checks
+    if [ -z "$file" ]; then
+        echo "mtt: no file name provided" >&2
+        exit 1
+    fi
+
+    if [ ! -f "$file" ]; then
+        if [ -d "$file" ]; then
+            echo "mtt: cannot remove '$file': Is a directory" >&2
+            exit 1
+        fi
+        echo "mtt: cannot remove '$file': Not a regular file" >&2 #pending
+        exit 1
+    fi
+
+    if is_mtt_script "$file"; then
+        echo "mtt: operation aborted: Can't recycle 'mtt'" >&2
+        exit 2
+    fi
+
+    # Get file details
+    local inode=$(get_inode "$file")
+    local trash_name="${basename}_${inode}"
+    local orig_path=$(realpath "$file")
+    local datetime=$(get_datetime)
+
+    # Move file to Trash
+    mv "$file" "$TRASH_FILES/$trash_name"
+
+    # Create trashinfo file
+    cat > "$TRASH_INFO/${trash_name}.trashinfo" << EOF
+[Trash Info]
+Path=$orig_path
+DeletionDate=$datetime
+EOF
+}
+
+# Function to restore file from Trash
+restore_file() {
+    local trash_name="$1"
+
+    # Error checks
+    if [ -z "$trash_name" ]; then
+        echo "mtt: File not provided" >&2
+        exit 1
+    fi
+
+    if [ ! -f "$TRASH_FILES/$trash_name" ]; then
+        echo "mtt: cannot restore '$trash_name': No such file in Trash" >&2
+        exit 1
+    fi
+
+    # Get original path from trashinfo
+    local orig_path=$(grep '^Path=' "$TRASH_INFO/${trash_name}.trashinfo" | cut -d'=' -f2)
+    local orig_dir=$(dirname "$orig_path")
+
+    # Create original directory if it doesn't exist
+    mkdir -p "$orig_dir"
+
+    if [ -f "$orig_path" ]; then
+        read -p  "Overwrite the existing file? " response
+            if ! [[ "$response" =~ ^[yY].* ]]; then
+                echo "mtt: restore canceled" >&2
+                exit 0
+            fi
+    fi
+
+    # Restore file and remove trashinfo
+    mv "$TRASH_FILES/$trash_name" "$orig_path"
+    rm "$TRASH_INFO/${trash_name}.trashinfo"
+}
+
+# Main script logic
+setup_trash
+
+if [ "$1" = "-u" ]; then
+    restore_file "$2"
+else
+    move_to_trash "$1"
+fi
+
+exit 0
