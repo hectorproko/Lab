@@ -1,6 +1,11 @@
 name: hello-world
 
-on: push
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Lab/GitActions'
 
 jobs:
   hello-world-job:
