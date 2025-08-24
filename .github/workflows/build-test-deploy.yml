@@ -1,6 +1,11 @@
 name: build-test-deploy
 
-on: push
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Lab/GitActions'
 
 jobs:
   build:
