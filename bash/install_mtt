@@ -1,0 +1,129 @@
+#!/bin/bash
+
+# 1a path of script
+MTT_SCRIPT="/usr/bin/mtt"
+# 1b path to man page
+MAN_PAGE="/usr/share/man/man1/mtt.1"
+
+#extra functionality
+check_sudo() {
+    if [ "$(id -u)" != "0" ]; then
+        echo "This script requires sudo privileges to install/uninstall to $(dirname $MTT_SCRIPT)."
+        exit 1
+    fi
+}
+
+# 1a path of script
+# Generates script and man page
+create_mtt_script() {
+
+if mtt_installed; then 
+    installed_prompt
+    return 0
+fi
+
+# Generating script
+    cat << 'EOF' > "$MTT_SCRIPT" #pending lets just put teh final path not temp
+#!/bin/bash
+# Dummy mtt command for demonstration
+echo "mtt command executed"
+EOF
+
+# Generating man page
+    cat << 'EOF' > "$MAN_PAGE" #pending lets just put teh final path not temp
+.TH MTT 1 "2025-08-27" "mtt version 1.0" "User Commands"
+.SH NAME
+mtt \- manage trash files
+.SH SYNOPSIS
+.B mtt
+.SH DESCRIPTION
+.B mtt
+is a command to manage trash files on Unix-like systems.
+.SH AUTHOR
+Written for system automation.
+EOF
+
+chmod +x "$MTT_SCRIPT"
+echo "mtt installed successfully."
+}
+
+
+# Check if mtt is already installed
+
+mtt_installed() {
+    if [ -f "$MTT_SCRIPT" ]; then
+        #echo "mtt is already installed at $MTT_SCRIPT."
+        return 0
+    else
+        #echo "mtt not installed at $MTT_SCRIPT."
+        return 1
+    fi
+}
+
+installed_prompt() {
+    echo "mtt command-script is already installed." #pending myabe delete duplucate text
+    echo "Choose an option:"
+    echo "1) Uninstall the mtt command-script"
+    echo "2) Reconfigure the mtt command-script"
+    echo "3) Quit"
+    read -rp "Enter choice [1-3]: " choice
+    case "$choice" in
+        1)
+            echo "Uninstalling mtt..."
+            sleep 1
+            uninstall_mtt
+            # call your uninstall function here
+            ;;
+        2)
+            echo "Reconfiguring mtt..."
+            # call your reconfigure function here
+            ;;
+        3)
+            echo "Quitting."
+            exit 0
+            ;;
+        *)
+            echo "Invalid choice. Please run the script again."
+            exit 1
+            ;;
+    esac
+}
+
+uninstall_mtt(){
+
+    if other_users_mtt; then
+        echo "mtt is installed by another user. Cannot uninstall."
+        return 1
+    fi
+
+    if mtt_installed; then
+        rm -f "$MTT_SCRIPT" "$MAN_PAGE"
+        echo "mtt uninstalled successfully."
+    else
+        echo "mtt is not installed."
+    fi
+}
+
+other_users_mtt() {
+    local current_uid
+    current_uid=$(id -u)
+
+    if [ -f "$MTT_SCRIPT" ] && [ "$(stat -c "%u" "$MTT_SCRIPT")" -ne "$current_uid" ]; then
+        return 0  # another user owns the file
+    else
+        return 1  # current user owns it or file doesn’t exist
+    fi
+}
+
+not_installed_reconfigure_prompt() {
+
+}
+
+
+##################
+# Testing area
+#Need sudo to write to /usr/bin and /usr/share create check
+
+create_mtt_script
+#other_users_mtt
+#echo $?
