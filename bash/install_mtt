@@ -4,18 +4,28 @@
 MTT_SCRIPT="/usr/bin/mtt"
 # 1b path to man page
 MAN_PAGE="/usr/share/man/man1/mtt.1"
+# Trash paths
+TRASH_FILES="$HOME/.local/share/Trash/files"
+TRASH_INFO="$HOME/.local/share/Trash/info"
+
+#requirements
+#mail
 
 #extra functionality
 check_sudo() {
     if [ "$(id -u)" != "0" ]; then
-        echo "This script requires sudo privileges to install/uninstall to $(dirname $MTT_SCRIPT)."
-        exit 1
+        color_text "red" "This script requires sudo privileges to install/uninstall to $(dirname $MTT_SCRIPT)."
+        color_text "yellow" "Re-running the script with sudo..."
+        sleep 1
+        exec sudo bash "$0" "$@"
     fi
 }
 
 # 1a path of script
 # Generates script and man page
 create_mtt_script() {
+
+#check_sudo
 
 if mtt_installed; then 
     installed_prompt
@@ -44,7 +54,8 @@ Written for system automation.
 EOF
 
 chmod +x "$MTT_SCRIPT"
-echo "mtt installed successfully."
+color_text "green" "mtt installed successfully."
+configure_mtt
 }
 
 
@@ -61,29 +72,31 @@ mtt_installed() {
 }
 
 installed_prompt() {
-    echo "mtt command-script is already installed." #pending myabe delete duplucate text
-    echo "Choose an option:"
+    color_text "green" "mtt command-script is already installed."
+    color_text "yellow" "Choose an option:"
     echo "1) Uninstall the mtt command-script"
     echo "2) Reconfigure the mtt command-script"
     echo "3) Quit"
     read -rp "Enter choice [1-3]: " choice
     case "$choice" in
         1)
-            echo "Uninstalling mtt..."
+            color_text "yellow" "Uninstalling mtt..."
             sleep 1
             uninstall_mtt
-            # call your uninstall function here
+            # call uninstall function here
             ;;
         2)
-            echo "Reconfiguring mtt..."
-            # call your reconfigure function here
+            color_text "yellow" "Reconfiguring mtt..."
+            sleep 1
+            configure_mtt
             ;;
         3)
-            echo "Quitting."
+            color_text "red" "Quitting."
+            sleep 1
             exit 0
             ;;
         *)
-            echo "Invalid choice. Please run the script again."
+            color_text "red" "Invalid choice. Please run the script again."
             exit 1
             ;;
     esac
@@ -92,15 +105,15 @@ installed_prompt() {
 uninstall_mtt(){
 
     if other_users_mtt; then
-        echo "mtt is installed by another user. Cannot uninstall."
+        color_text "red" "mtt is installed by another user. Cannot uninstall."
         return 1
     fi
 
     if mtt_installed; then
         rm -f "$MTT_SCRIPT" "$MAN_PAGE"
-        echo "mtt uninstalled successfully."
+        color_text "green" "mtt uninstalled successfully."
     else
-        echo "mtt is not installed."
+        color_text "red" "mtt is not installed."
     fi
 }
 
@@ -115,8 +128,56 @@ other_users_mtt() {
     fi
 }
 
-not_installed_reconfigure_prompt() {
+configure_mtt() {
+    echo "Do you want the Trash to empty automatically? (y/n)"
+    read -r auto_empty
 
+    if [[ "$auto_empty" =~ ^[yY] ]]; then
+        color_text "yellow" "Choose how to empty the Trash (files older than 30 days only):"
+        echo "1) Every day at 9am"
+        echo "2) Only on the first day of every month"
+        read -r choice
+
+        # Set the base schedule
+        case "$choice" in
+            1)
+                CRON_ENTRY="0 9 * * * $TRASH_FILES $TRASH_INFO -type f -mtime +30 -exec rm -f {} \; #9am"
+                (crontab -l 2>/dev/null | grep -v 'monthly'; echo "$CRON_ENTRY") | crontab -
+                ;;
+            2)
+                CRON_ENTRY="0 9 1 * * $TRASH_FILES $TRASH_INFO -type f -mtime +30 -exec rm -f {} \; #monthly"
+                echo "Debug CRON_ENTRY"
+                echo "$CRON_ENTRY"
+                #(crontab -l 2>/dev/null | grep -v "9am"; echo "$CRON_ENTRY") | crontab -
+                (crontab -l | grep -v "Hello2"; echo "* * * * * echo 'From Script'") | crontab - #works
+                ;;
+            *)
+                color_text "red" "Invalid choice. No schedule set." >&2
+                return 1
+                ;;
+        esac
+
+        color_text "green" "Scheduled Trash cleanup successfully." #doesnt check crap
+    else
+        echo "Trash will NOT be emptied automatically."
+    fi
+}
+
+color_text() {
+    local color="$1"
+    local text="$2"
+
+    case "$color" in
+        red) code="31" ;;
+        green) code="32" ;;
+        yellow) code="33" ;;
+        blue) code="34" ;;
+        magenta) code="35" ;;
+        cyan) code="36" ;;
+        *) code="0" ;; # default (no color)
+    esac
+
+    echo -e "\e[${code}m${text}\e[0m"
 }
 
 
@@ -126,4 +187,4 @@ not_installed_reconfigure_prompt() {
 
 create_mtt_script
 #other_users_mtt
-#echo $?
+#echo $? fd
