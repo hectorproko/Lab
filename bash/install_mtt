@@ -13,11 +13,13 @@ TRASH_INFO="$HOME/.local/share/Trash/info"
 
 #extra functionality
 check_sudo() {
+
     if [ "$(id -u)" != "0" ]; then
         color_text "red" "This script requires sudo privileges to install/uninstall to $(dirname $MTT_SCRIPT)."
         color_text "yellow" "Re-running the script with sudo..."
         sleep 1
         exec sudo bash "$0" "$@"
+        ORIG_USER="${SUDO_USER:-$USER}"
     fi
 }
 
@@ -25,12 +27,12 @@ check_sudo() {
 # Generates script and man page
 create_mtt_script() {
 
-#check_sudo
 
 if mtt_installed; then 
     installed_prompt
     return 0
 fi
+
 
 # Generating script
     cat << 'EOF' > "$MTT_SCRIPT" #pending lets just put teh final path not temp
@@ -54,8 +56,13 @@ Written for system automation.
 EOF
 
 chmod +x "$MTT_SCRIPT"
+chown $ORIG_USER: "$MTT_SCRIPT" #make sure file is not root owned
+
+
 color_text "green" "mtt installed successfully."
-configure_mtt
+
+sudo -u "$SUDO_USER" bash -c 'configure_mtt'
+
 }
 
 
@@ -141,23 +148,22 @@ configure_mtt() {
         # Set the base schedule
         case "$choice" in
             1)
-                CRON_ENTRY="0 9 * * * $TRASH_FILES $TRASH_INFO -type f -mtime +30 -exec rm -f {} \; #9am"
-                (crontab -l 2>/dev/null | grep -v 'monthly'; echo "$CRON_ENTRY") | crontab -
-                ;;
+                CRON_ENTRY="0 9 * * * find $TRASH_FILES $TRASH_INFO -type f -mtime +30 -exec rm -f {} \; #9am"                                                                    
+                (crontab -l 2>/dev/null | grep -v 'monthly'; echo "$CRON_ENTRY") | crontab -u "hector.rodriguez" -
+                #(crontab -l 2>/dev/null | grep -v 'monthly'; echo "$CRON_ENTRY") | crontab -u $(echo "$SUDO_USER") -
+                ;;                                                                           #"$SUDO_USER" alone did not work
             2)
-                CRON_ENTRY="0 9 1 * * $TRASH_FILES $TRASH_INFO -type f -mtime +30 -exec rm -f {} \; #monthly"
-                echo "Debug CRON_ENTRY"
-                echo "$CRON_ENTRY"
-                #(crontab -l 2>/dev/null | grep -v "9am"; echo "$CRON_ENTRY") | crontab -
-                (crontab -l | grep -v "Hello2"; echo "* * * * * echo 'From Script'") | crontab - #works
-                ;;
+                CRON_ENTRY="0 9 1 * * find $TRASH_FILES $TRASH_INFO -type f -mtime +30 -exec rm -f {} \; #monthly"
+                (crontab -l | grep -v "9am"; echo "$CRON_ENTRY") | crontab -u "hector.rodriguez" - 
+                #(crontab -l | grep -v "9am"; echo "$CRON_ENTRY") | crontab -u $(echo "$SUDO_USER") - 
+                ;;                                                           #"$SUDO_USER" alone did not work
             *)
                 color_text "red" "Invalid choice. No schedule set." >&2
                 return 1
                 ;;
         esac
 
-        color_text "green" "Scheduled Trash cleanup successfully." #doesnt check crap
+        color_text "green" "Scheduled Trash cleanup finshed."
     else
         echo "Trash will NOT be emptied automatically."
     fi
@@ -185,6 +191,7 @@ color_text() {
 # Testing area
 #Need sudo to write to /usr/bin and /usr/share create check
 
+check_sudo
 create_mtt_script
 #other_users_mtt
 #echo $? fd
