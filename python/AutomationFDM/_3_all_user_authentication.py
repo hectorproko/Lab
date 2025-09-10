@@ -6,7 +6,7 @@ def load_csv(file_path):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(script_dir, file_path)
     with open(file_path, 'r', encoding='utf-8') as f:
-        log_content = f.read()
+        log_content = f.read() #messed up
     return log_content
 
 def identify_human(log_content):

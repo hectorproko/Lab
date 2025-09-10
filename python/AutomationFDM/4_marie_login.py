@@ -10,6 +10,7 @@ def retrieve_login_info(events_list, user):
         if "An account was successfully logged on" in event and "4624" in event and user in event:
             #print(f"\033[96m{'#' * 120}\033[0m")
             lines = event.splitlines()
+            #print(event)
             for line in lines:
                 #print(line)
                 line = line.strip()
@@ -23,7 +24,7 @@ def retrieve_login_info(events_list, user):
                         #print(ip)
                         #print(type(ip))
 
-                if "Workstation Name:" in line:
+                if "Workstation Name:" in line and "WIN-" in line:
                         #print(line)
                         parts = line.split(":", 1)
                         workstation = parts[1].strip()
@@ -36,7 +37,7 @@ def retrieve_login_info(events_list, user):
 
 def main():
     user = "marie"
-    log_content = load_csv('Win_Evt_Logs2.csv')
+    log_content = load_csv('Win_Evt_Logs.csv')
     events_list = tokenize_events(log_content)
     retrieve_login_info(events_list, user)
 
