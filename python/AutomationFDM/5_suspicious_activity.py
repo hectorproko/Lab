@@ -36,7 +36,7 @@ def successful_login(event, user, logins):
     if "An account was successfully logged on" in event and "4624" in event and user in event:
         #extract_Account_Name(event)
         #print(event)
-        #print(user + ": Successfully logged on " + str(extract_Timestamp(event)))
+        print(user + ": Successfully logged on " + str(extract_Timestamp(event)))
         entry = f"{user}: Successfully logged on {extract_Timestamp(event)}\n"
         logins += entry
         return logins
@@ -47,7 +47,7 @@ def failed_login(event, user, logins):
     if "Kerberos pre-authentication failed" in event and "4771" in event and user in event:
         #extract_Account_Name(event)
         #print(event)
-        #print(user + ": Failed logged on " + str(extract_Timestamp(event)))
+        print(user + ": Failed logged on " + str(extract_Timestamp(event)))
         #logins.append(user + ": Failed logged on " + str(extract_Timestamp(event)))
         entry = f"{user}: Failed logged on {extract_Timestamp(event)}\n"
         logins += entry
