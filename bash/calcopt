@@ -1,0 +1,106 @@
+# To perform basic arithmetic operations — addition, subtraction, multiplication, 
+# division, and exponentiation — either interactively or via command-line arguments.
+#!/bin/bash
+
+# Functions for arithmetic operations
+add() {
+    echo "$1 + $2 = $(($1 + $2))"
+}
+
+subtract() {
+    echo "$1 - $2 = $(($1 - $2))"
+}
+
+multiply() {
+    echo "$1 * $2 = $(($1 * $2))"
+}
+
+divide() {
+    result=$(echo "scale=2; $1 / $2" | bc)
+    echo "$1 / $2 = $result"
+}
+
+power() {
+    echo "$1 ^ $2 = $(($1 ** $2))"
+}
+
+# Function to check if input is an integer
+is_integer() {
+    [[ "$1" =~ ^-?[0-9]+$ ]]
+}
+
+# Function to validate arguments
+validate_args() {
+    if [ "$#" -ne 3 ]; then
+        echo "Error: Exactly two numbers and one option required."
+        exit 1
+    fi
+
+    if ! is_integer "$2" || ! is_integer "$3"; then
+        echo "Error: Both arguments must be integers."
+        exit 1
+    fi
+}
+
+# Menu mode (no arguments)
+if [ "$#" -eq 0 ]; then
+    while true; do
+        echo "==================="
+        echo "SIMPLE CALCULATOR"
+        echo "==================="
+        echo "1 - Add two numbers"
+        echo "2 - Subtract two numbers"
+        echo "3 - Multiply two numbers"
+        echo "4 - Divide two numbers"
+        echo "5 - Raise a number to a power"
+        echo "Enter your choice (1-5): "
+        read choice
+
+        case $choice in
+            1)
+                read -p "Enter two numbers: " a b
+                add "$a" "$b"
+                ;;
+            2)
+                read -p "Enter two numbers: " a b
+                subtract "$a" "$b"
+                ;;
+            3)
+                read -p "Enter two numbers: " a b
+                multiply "$a" "$b"
+                ;;
+            4)
+                read -p "Enter two numbers: " a b
+                divide "$a" "$b"
+                ;;
+            5)
+                read -p "Enter base and exponent: " a b
+                power "$a" "$b"
+                ;;
+            *)
+                echo "Invalid choice."
+                exit 1
+                ;;
+        esac
+        echo ""
+    done
+fi
+
+# Option parsing mode
+validate_args "$@"
+
+option="$1"
+num1="$2"
+num2="$3"
+
+while getopts "asmdp" opt; do
+    case $opt in
+        a) echo "Addition Result: $(($num1 + $num2))" ;;
+        s) echo "Subtraction Result: $(($num1 - $num2))" ;;
+        m) echo "Multiplication Result: $(($num1 * $num2))" ;;
+        d) result=$(echo "scale=2; $num1 / $num2" | bc)
+           echo "Division Result: $result" ;;
+        p) echo "Power Result: $(($num1 ** $num2))" ;;
+        *) echo "Invalid option"; exit 1 ;;
+    esac
+done

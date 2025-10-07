@@ -1,0 +1,27 @@
+name: build-test-deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Lab/GitActions'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+      - name: use node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      - name: Install dependencies    
+        run: npm install
+        working-directory: ./GitActions/Demo2
+      - name: Build  
+        run: npm run build
+        working-directory: ./GitActions/Demo2
+      

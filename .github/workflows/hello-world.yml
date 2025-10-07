@@ -1,0 +1,19 @@
+name: hello-world
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Lab/GitActions'
+
+jobs:
+  hello-world-job:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: check out repository code
+        uses: actions/checkout@v4
+      #- run: echo "$(cat hello_world.txt)"
+      - run: echo "$(cat GitActions/hello_world.txt)"
