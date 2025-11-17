@@ -1,0 +1,105 @@
+---
+# roles/aws_infra/tasks/main.yml  
+- name: Create VPC
+  amazon.aws.ec2_vpc_net:
+    name: "{{ cluster_name }}"
+    cidr_block: "{{ vpc_cidr }}"
+    region: "{{ aws_region }}"
+    dns_support: yes
+    dns_hostnames: yes
+    tags:
+      Name: "{{ cluster_name }}"
+  register: vpc
+
+- name: Create and Associate DHCP Options Set with VPC
+  amazon.aws.ec2_vpc_dhcp_option:
+    region: "{{ aws_region }}"
+    domain_name: "{{ dhcp_domain }}"
+    dns_servers:
+      - AmazonProvidedDNS
+    tags:
+      Name: "{{ cluster_name }}"
+    vpc_id: "{{ vpc.vpc.id }}"
+    state: present
+  register: dhcp_options
+
+- name: Create Subnet
+  amazon.aws.ec2_vpc_subnet:
+    region: "{{ aws_region }}"
+    vpc_id: "{{ vpc.vpc.id }}"
+    cidr: "{{ subnet_cidr }}"
+    tags:
+      Name: "{{ cluster_name }}"
+  register: subnet
+
+- name: Create Internet Gateway
+  amazon.aws.ec2_vpc_igw:
+    region: "{{ aws_region }}"
+    vpc_id: "{{ vpc.vpc.id }}"
+    tags:
+      Name: "{{ cluster_name }}"
+  register: igw
+
+- name: Create Route Table with Routes and Subnet Association
+  amazon.aws.ec2_vpc_route_table:
+    region: "{{ aws_region }}"
+    vpc_id: "{{ vpc.vpc.id }}"
+    tags:
+      Name: "{{ cluster_name }}"
+    subnets:
+      - "{{ subnet.subnet.id }}"
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: "{{ igw.gateway_id }}"
+  register: route_table
+
+- name: Create Security Group with All Ingress Rules
+  amazon.aws.ec2_security_group:
+    name: "{{ cluster_name }}"
+    description: "Kubernetes cluster security group"
+    vpc_id: "{{ vpc.vpc.id }}"
+    region: "{{ aws_region }}"
+    rules:
+      - proto: tcp
+        from_port: 2379
+        to_port: 2380
+        cidr_ip: "{{ subnet_cidr }}"
+        description: "etcd server client API"
+      - proto: tcp
+        from_port: 10250
+        to_port: 10250
+        cidr_ip: "{{ subnet_cidr }}"
+        description: "Kubelet API"
+      - proto: tcp
+        from_port: 10251
+        to_port: 10251
+        cidr_ip: "{{ subnet_cidr }}"
+        description: "kube-scheduler"
+      - proto: tcp
+        from_port: 10252
+        to_port: 10252
+        cidr_ip: "{{ subnet_cidr }}"
+        description: "kube-controller-manager"
+      - proto: tcp
+        from_port: 30000
+        to_port: 32767
+        cidr_ip: "{{ subnet_cidr }}"
+        description: "NodePort Services"
+      - proto: tcp
+        from_port: 6443
+        to_port: 6443
+        cidr_ip: "0.0.0.0/0"
+        description: "Kubernetes API server"
+      - proto: tcp
+        from_port: 22
+        to_port: 22
+        cidr_ip: "{{ ssh_allowed_cidr }}"
+        description: "SSH access"
+      - proto: all
+        from_port: -1
+        to_port: -1
+        cidr_ip: "{{ subnet_cidr }}"
+        description: "Allow all internal traffic"
+    tags:
+      Name: "{{ cluster_name }}"
+  register: sg

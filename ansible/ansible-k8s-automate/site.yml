@@ -1,0 +1,5 @@
+- name: Provision AWS Infrastructure
+  hosts: aws_provisioner
+  gather_facts: false
+  roles:
+    - role: aws_infra
