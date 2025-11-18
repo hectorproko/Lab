@@ -1,0 +1,17 @@
+# Node configuration
+instance_type: t3.medium
+ami_id: ami-0ecb62995f68bb549        # Ubuntu 22.04 LTS us-east-1 (official)
+key_name: "{{ key_name }}"             # same key you set in inventory
+subnet_id: "{{ subnet.subnet.id }}"
+security_group_id: "{{ sg.group_id }}"
+
+nodes:
+  masters:
+    count: 3
+    prefix: k8s-master
+    role: control-plane
+  workers:
+    count: 3
+    prefix: k8s-worker
+    role: worker
+    
