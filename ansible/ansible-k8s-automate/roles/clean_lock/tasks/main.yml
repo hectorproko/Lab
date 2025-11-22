@@ -1,0 +1,11 @@
+---
+- name: Safely remove dpkg locks if not in use
+  ansible.builtin.shell: |
+    if ! lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1 && ! lsof /var/lib/dpkg/lock >/dev/null 2>&1; then
+      echo "No process is using dpkg locks. Removing lock files..."
+      rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock
+      dpkg --configure -a
+    else
+      echo "dpkg is currently in use. Skipping lock removal."
+    fi
+  become: yes
