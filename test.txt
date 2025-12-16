@@ -1,0 +1,4 @@
+aws ssm put-parameter \
+  --name "mysql_psw" \
+  --value "postgres" \
+  --type "SecureString"

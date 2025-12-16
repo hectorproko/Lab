@@ -13,7 +13,7 @@ provider "aws" {
 }
 
 variable "security-group-ports" {
-  default = [22, 80, 443, 8080]
+  default = [22, 80, 443, 8080, 5432]
 }
 
 variable "instance-type" {
