@@ -1,0 +1,95 @@
+
+- name: Configuration of master node
+  hosts: masters
+  become: true
+  tasks:
+    # 1. Initialize the cluster – only on the first master
+    - name: Initialize the Kubernetes control plane
+      ansible.builtin.command: >
+        kubeadm init
+        --control-plane-endpoint="{{ hostvars[groups['masters'][0]]['ansible_default_ipv4']['address'] }}:6443"
+        --pod-network-cidr=172.16.0.0/16
+        --apiserver-advertise-address={{ ansible_default_ipv4.address }}
+        --upload-certs
+        --ignore-preflight-errors=NumCPU,Mem,Swap
+      args:
+        creates: /etc/kubernetes/pki/apiserver.crt   # ← makes the task idempotent
+      when: inventory_hostname == groups['masters'][0]
+      register: kubeadm_init
+      changed_when: kubeadm_init.rc == 0
+
+    # 2. Generate join command + cert key for additional masters
+    - name: Generate control-plane join command and certificate key
+      block:
+        - name: Create token
+          ansible.builtin.command: kubeadm token create --print-join-command
+          register: join_cmd_raw
+          changed_when: false
+
+        - name: Upload certs and get certificate key
+          ansible.builtin.command: kubeadm init phase upload-certs --upload-certs
+          register: cert_key_raw
+          changed_when: false
+
+        - name: Build full control-plane join command
+          ansible.builtin.set_fact:
+            cp_join_cmd: >-
+              {{ join_cmd_raw.stdout }} --control-plane
+              --certificate-key {{ cert_key_raw.stdout_lines[-1] }}
+              --ignore-preflight-errors=NumCPU,Mem,Swap,FileExisting-conntrack
+      delegate_to: "{{ groups['masters'][0] }}"
+      run_once: true
+      when: groups['masters'] | length > 1   # Generate the join if there are multiple master, otherwise no need
+
+    # 3. Join additional masters (skip the first one)
+    - name: Join as additional control-plane node
+      ansible.builtin.command: "{{ hostvars[groups['masters'][0]].cp_join_cmd }}"
+      args:
+        creates: /etc/kubernetes/pki/apiserver.crt
+      when: inventory_hostname != groups['masters'][0]
+
+    # 4. Copy kubeconfig on ALL masters (first one too)
+    - name: Create .kube directory for the ubuntu user
+      ansible.builtin.file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'      
+
+    - name: Copy admin.conf to user's kubeconfig
+      ansible.builtin.copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'     
+
+    # 5. Install Cilium CNI – only once, on first master
+    - name: Install Cilium CNI - the easiest and most reliable CNI in 2025
+      become: true
+      block:
+        - name: Download and install the latest Cilium CLI
+          shell: |
+            curl -L --remote-name-all https://github.com/cilium/cilium-cli/releases/latest/download/cilium-linux-amd64.tar.gz{,.sha256sum}
+            sha256sum --check cilium-linux-amd64.tar.gz.sha256sum
+            sudo tar xzvf cilium-linux-amd64.tar.gz -C /usr/local/bin
+            rm cilium-linux-amd64.tar.gz*
+          args:
+            creates: /usr/local/bin/cilium
+
+        - name: Install Cilium (replaces kube-proxy, enables Hubble, auto-detects pod CIDR)
+          shell: cilium install --wait
+          environment:
+            KUBECONFIG: /etc/kubernetes/admin.conf   # just in case
+          args:
+            creates: /home/ubuntu/cilium_installed.txt
+
+        - name: Mark Cilium as installed (idempotency marker)
+          file:
+            path: /home/ubuntu/cilium_installed.txt
+            state: touch
+            owner: ubuntu
+            group: ubuntu
+      when: inventory_hostname == groups['masters'][0]

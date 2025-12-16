@@ -1,0 +1,6 @@
+#!/bin/bash
+swapoff -a
+sed -i '/ swap / s/^/#/' /etc/fstab
+apt update && apt upgrade -y
+apt install -y curl ca-certificates
+

@@ -1,0 +1,152 @@
+
+- name: Initialize master and worker nodes
+  hosts: all
+  become: true
+  tasks:
+
+   - name: disable UFW firewall for labs
+     service:
+        name: ufw
+        state: stopped
+        enabled: false
+
+   - name: Disable SWAP
+     shell: |
+       swapoff -a
+
+   - name: Disable SWAP in fstab
+     lineinfile:
+       path: /etc/fstab
+       regexp: '^.*swap.*$'
+       line: '#\0'
+       backrefs: yes
+
+   - name: Load br_netfilter module now
+     community.general.modprobe:
+       name: br_netfilter
+       state: present
+
+   - name: Ensure br_netfilter is loaded at boot
+     copy:
+       content: "br_netfilter"
+       dest: /etc/modules-load.d/br_netfilter.conf
+       mode: '0644'
+
+   - name: Also load overlay module (required by containerd/CRI-O)
+     community.general.modprobe:
+       name: overlay
+       state: present
+
+   - name: ensure net.bridge.bridge-nf-call-ip6tables is set to 1
+     sysctl:
+       name: net.bridge.bridge-nf-call-iptables
+       value: '1'
+       state: present
+       reload: yes
+
+   - name: Installation of apt-utils
+     apt:
+      name: apt-transport-https
+      state: present
+      update_cache: yes
+
+   - name: Adding Docker GPG key
+     ansible.builtin.apt_key:
+       url: https://download.docker.com/linux/ubuntu/gpg
+       state: present
+
+   - name: Adding Docker Repository
+     apt_repository:
+       repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+       state: present
+
+   - name: Installation of Docker
+     apt:
+      name: "{{ item }}"
+      state: present
+     loop:
+       - docker-ce
+       - docker-ce-cli
+       - containerd.io
+       - docker-compose
+
+   - name: Setting value of SystemdCgroup
+     shell: |
+       containerd config default | sudo tee /etc/containerd/config.toml | grep SystemdCgroup
+       sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
+
+   - name : Starting Service of Docker
+     service:
+       name: docker
+       state: started
+       enabled: yes
+
+   # - name: Add Kubernetes apt repository
+     # apt_repository:
+       # repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+       # state: present
+
+   - name: Add Kubernetes apt signing key
+     ansible.builtin.get_url:
+       url: https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key
+       dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+       mode: '0644'
+
+   - name: Add Kubernetes apt repository (v1.31 - change version as needed)
+     apt_repository:
+       repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /
+       state: present
+       filename: kubernetes
+       update_cache: yes
+
+   - name: Install kubelet and kubeadm
+     apt:
+        name: "{{ item }}"
+        state: present
+     loop:
+       - kubeadm
+       - kubelet
+
+   - name: start kubelet
+     service:
+       name: kubelet
+       enabled: yes
+       state: started
+
+   - name: install kubectl
+     apt:
+        name: kubectl
+        state: present
+     when: "'masters' in group_names"
+
+   - name: Generate default containerd config if missing
+     command: containerd config default > /etc/containerd/config.toml
+     args:
+       creates: /etc/containerd/config.toml
+
+   - name: Enable systemd cgroup driver in containerd (required for K8s)
+     replace:
+       path: /etc/containerd/config.toml
+       regexp: 'SystemdCgroup = false'
+       replace: 'SystemdCgroup = true'
+     notify: restart containerd
+
+   - name: Make sure containerd is running and enabled
+     systemd:
+       name: containerd
+       state: restarted
+       enabled: yes
+       daemon_reload: yes
+       
+   - name: Install conntrack and ipset (required by kube-proxy)
+     ansible.builtin.apt:
+       name:
+         - conntrack
+         - ipset
+       state: present
+  handlers:
+    - name: restart containerd
+      systemd:
+        name: containerd
+        state: restarted
+        

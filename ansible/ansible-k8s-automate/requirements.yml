@@ -1,0 +1,4 @@
+collections:
+  - name: amazon.aws
+  - name: community.crypto  # for certs later
+  - name: kubernetes.core   # for k8s manifests later

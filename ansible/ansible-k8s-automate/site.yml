@@ -1,0 +1,21 @@
+- name: Provision AWS Infrastructure
+  hosts: aws_provisioner
+  gather_facts: false
+  tags: infra
+  roles:
+    - aws_infra
+    - ec2_nodes
+    
+- name: Lockfile cleanup #ls -l /var/lib/dpkg/lock-frontend present after ec2 creation, nothing using it
+  hosts: all
+  become: yes
+  tags: clean
+  roles:
+    - clean_lock
+
+- name: Bootstrap Kubernetes
+  hosts: all
+  become: yes
+  tags: kubeadm
+  roles:
+    - k8s_bootstrap

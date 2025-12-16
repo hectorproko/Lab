@@ -1,0 +1,235 @@
+---
+# Install container runtime + kube* on all nodes
+- name: Create Kubernetes apt keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download and install Kubernetes apt key (new 2025 method)
+  ansible.builtin.shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Add Kubernetes apt repository (new signed-by method)
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
+    state: present
+    filename: kubernetes
+
+########################################
+# - name: Force remove dpkg locks and recover
+  # ansible.builtin.shell: rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock && dpkg --configure -a
+  # become: true
+########################################
+    # ==============================================================
+    # Fix interrupted dpkg + remove conflicting old containerd
+    # ==============================================================
+- name: Fix any interrupted dpkg state
+  ansible.builtin.command: dpkg --configure -a
+  ignore_errors: yes   # in case nothing is broken
+
+- name: Remove Ubuntu's default containerd package (conflicts)
+  ansible.builtin.apt:
+    name: containerd
+    state: absent
+    purge: yes
+  ignore_errors: yes   # if it's not installed, that's fine
+
+- name: Remove possible leftover containerd.io (just in case)
+  ansible.builtin.apt:
+    name: containerd.io
+    state: absent
+    purge: yes
+  ignore_errors: yes
+
+# Add Docker repo (only once)
+# - name: Add Docker official repository for containerd.io
+  # block:
+    # - name: Install prerequisites
+      # ansible.builtin.apt:
+        # name: [ca-certificates, curl]
+        # state: present
+
+    # - name: Download Docker GPG key
+      # ansible.builtin.get_url:
+        # url: https://download.docker.com/linux/ubuntu/gpg
+        # dest: /etc/apt/keyrings/docker.gpg
+        # mode: '0644'
+
+    # - name: Add Docker repository
+      # ansible.builtin.apt_repository:
+        # repo: deb [signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable
+        # state: present
+        # filename: docker
+  # when: "'docker' not in ansible_facts.packages"   # idempotent
+      
+- name: Install packages on all nodes
+  ansible.builtin.apt:
+    name:
+      - containerd.io     
+      - kubelet=1.30.0-1.1
+      - kubeadm=1.30.0-1.1
+      - kubectl=1.30.0-1.1
+    state: present
+    update_cache: yes
+
+- name: Hold kube* packages
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Enable IP forwarding
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    reload: yes
+
+# ==================== FIXED CONTAINERD CONFIG ====================
+- name: Ensure containerd config directory exists
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+    mode: '0755'
+
+- name: Create proper containerd config with CRI enabled and correct pause image
+  ansible.builtin.copy:
+    content: |
+      version = 2
+      [plugins."io.containerd.grpc.v1.cri"]
+        sandbox_image = "registry.k8s.io/pause:3.9"
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+          runtime_type = "io.containerd.runc.v2"
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+          SystemdCgroup = true
+    dest: /etc/containerd/config.toml
+    mode: '0644'
+
+- name: Restart containerd with new config
+  ansible.builtin.systemd:
+    name: containerd
+    state: restarted
+    enabled: yes
+
+- name: Ensure containerd is running
+  ansible.builtin.systemd:
+    name: containerd
+    state: started
+    enabled: yes
+
+# ← Removed the failing crictl pull task (no longer needed)
+
+- name: Restart kubelet to pick up containerd changes
+  ansible.builtin.systemd:
+    name: kubelet
+    state: restarted
+    enabled: yes
+
+# Verification tasks (unchanged)
+- name: Verify containerd is using correct sandbox image
+  ansible.builtin.command: "grep 'sandbox_image' /etc/containerd/config.toml"
+  register: sandbox_image_check
+  changed_when: false
+
+- name: Verify systemd_cgroup is true
+  ansible.builtin.command: "grep 'SystemdCgroup' /etc/containerd/config.toml"
+  register: systemd_cgroup_check
+  changed_when: false
+
+- name: Verify kubelet is active
+  ansible.builtin.systemd:
+    name: kubelet
+    state: started
+  register: kubelet_status
+  changed_when: false
+
+# ==================== CONTROL PLANE INIT ====================
+- name: kubeadm init on first master (HA with upload-certs)
+  ansible.builtin.command: >
+    kubeadm init --pod-network-cidr=192.168.0.0/16
+    --control-plane-endpoint="{{ cluster_name }}-lb"
+    --upload-certs
+    --kubernetes-version=v1.30.0
+  when: inventory_hostname == groups['masters'][0]
+  register: kubeadm_init
+
+- name: Create .kube directory
+  ansible.builtin.file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    mode: '0755'
+  when: "'masters' in group_names"   # ← fixed group name check
+
+- name: Copy admin.conf to user's kubeconfig
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    remote_src: yes
+    owner: ubuntu
+    mode: '0644'
+  when: "'masters' in group_names"   # ← fixed group name check
+
+# ==================== JOIN LOGIC FIXED ====================
+- name: Generate kubeadm join command + certificate key (once on first master)
+  ansible.builtin.command: kubeadm token create --print-join-command
+  register: join_cmd_raw
+  run_once: true
+  when: inventory_hostname == groups['masters'][0]
+
+- name: Set join command fact for workers
+  ansible.builtin.set_fact:
+    worker_join_cmd: "{{ join_cmd_raw.stdout }}"
+  run_once: true
+  when: inventory_hostname == groups['masters'][0]
+
+# For additional masters we need the certificate key from init output
+- name: Extract certificate key from kubeadm init output
+  ansible.builtin.set_fact:
+    cert_key: "{{ kubeadm_init.stdout_lines | select('search', '--certificate-key') | first | split(' ') | last }}"
+  when: inventory_hostname == groups['masters'][0] and (groups['masters'] | length > 1)
+
+- name: Generate control-plane join command with cert key
+  ansible.builtin.command: kubeadm token create --print-join-command --certificate-key {{ cert_key }}
+  register: cp_join_raw
+  run_once: true
+  when: inventory_hostname == groups['masters'][0] and (groups['masters'] | length > 1)
+
+- name: Set control-plane join command fact
+  ansible.builtin.set_fact:
+    cp_join_cmd: "{{ cp_join_raw.stdout }}"
+  run_once: true
+  when: inventory_hostname == groups['masters'][0] and (groups['masters'] | length > 1)
+
+# Join additional masters
+- name: Join additional masters
+  ansible.builtin.command: "{{ cp_join_cmd }}"
+  when:
+    - inventory_hostname != groups['masters'][0]
+    - inventory_hostname in groups['masters']
+
+# Join workers
+- name: Join workers
+  ansible.builtin.command: "{{ worker_join_cmd }}"
+  when: inventory_hostname in groups['workers']
+
+# Install Calico
+- name: Install Calico CNI
+  kubernetes.core.k8s:
+    state: present
+    src: https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/calico.yaml
+  when: inventory_hostname == groups['masters'][0]
+
+# Copy kubeconfig back to your laptop
+- name: Fetch kubeconfig
+  ansible.builtin.fetch:
+    src: /home/ubuntu/.kube/config
+    dest: ./kubeconfig-{{ cluster_name }}
+    flat: yes
+  when: inventory_hostname == groups['masters'][0]
