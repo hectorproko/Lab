@@ -1,6 +1,33 @@
 import re
-from typing import List
+from typing import List, Union
+from pathlib import Path
 
+
+
+root = r"E:\Capgemini\Capgemini\MainTechnicalVault"
+single_note = r"E:\Capgemini\Capgemini\MainTechnicalVault\IntelliPaat\1 Live Session.md"
+
+def list_markdown_files(root: Union[str, Path]) -> List[Path]:
+    """
+    Recursively find all .md files under the given root directory.
+
+    Args:
+        root: The root directory path (str or Path)
+
+    Returns:
+        A sorted list of Path objects pointing to .md files.
+    """
+    root = Path(root).expanduser().resolve()
+    if not root.exists():
+        raise FileNotFoundError(f"Root path does not exist: {root}")
+    if not root.is_dir():
+        raise NotADirectoryError(f"Root path is not a directory: {root}")
+
+    # rglob("*.    # rglob("*.md") is case-sensitive on some filesystems; use suffix check for safety
+    md_files = [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() == ".md"] #list comprehension
+    #print(md_files)
+    #print(type(md_files))
+   
 def extract_png_references(file_path: str) -> List[str]:
     """
     Extracts a list of unique .png filenames (including possible paths) 
@@ -50,12 +77,11 @@ def extract_png_references(file_path: str) -> List[str]:
 
 
 
-pngs = extract_png_references(r"E:\Capgemini\Capgemini\MainTechnicalVault\IntelliPaat\1 Live Session.md")
+
+pngs = extract_png_references(single_note)
 print(pngs)
-# Possible output:
-# [
-#   'Pasted image 20250807161258.png',
-#   'thethingfromthekitche.png',
-#   'diagrams/flow chart.png',
-#   'screenshot.png'
-# ]
+
+files = list_markdown_files(root)
+#print(files)
+#for f in files:
+#    print(f)
