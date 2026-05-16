@@ -73,43 +73,43 @@ class Note:
         print(f"Found {len(cleaned)} unique images in {self.path.name}")
         return cleaned
     
+def run_for_note(single_note_path: str, root_folder: Union[str, Path]):
+    vault = Vault(root_folder)
+    note = Note(single_note_path)
 
-def main():
-    # Configure vault and note
-    root_folder = r"C:\MainTechnicalVault_test"
-    single_note_path = r"C:\MainTechnicalVault_test\IntelliPaat\1Live SessionCopy.md"
+    markdown_files = vault.list_markdown_files(exclude=note.path)
+    all_images = vault.list_images()
 
-    vault: Vault = Vault(root_folder)
-    note: Note = Note(single_note_path)
-
-    # List files
-    markdown_files: List[Path] = vault.list_markdown_files(exclude=note.path)
-    all_images: List[Path] = vault.list_images()
-
-    # Extract images
-    note_images: set[str] = note.extract_images()
+    note_images = note.extract_images()
     other_images = set()
     for md_file in markdown_files:
         other_images.update(Note(md_file).extract_images())
 
-    # Determine safe images
-    mover: ImageMover = ImageMover(all_images)
-    safe_images: set[str] = mover.find_safe_images(note_images, other_images)
+    mover = ImageMover(all_images)
+    safe_images = mover.find_safe_images(note_images, other_images)
 
-    # Create destination folder
     destination = mover.create_destination(note.path.stem, note.path.parent)
 
-    # Collect paths to move
     paths_to_move = [
         mover.image_lookup[name]
         for name in safe_images
         if name in mover.image_lookup
     ]
-    paths_to_move.append(note.path)  # include the note itself
+    paths_to_move.append(note.path)
 
-    # Move files
     mover.move(paths_to_move, destination)
     print("All files moved successfully.")
+
+def main():
+    # Configure vault and note
+    #root_folder = r"C:\MainTechnicalVault_test"
+    #single_note_path = r"C:\MainTechnicalVault_test\Untitled14.md"
+    #root_folder = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
+    #single_note_path = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault\python script hardlink images.md"
+    run_for_note(
+        single_note_path=r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault\Untitled33.md",
+        root_folder=r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
+    )
 
 
 if __name__ == "__main__":
