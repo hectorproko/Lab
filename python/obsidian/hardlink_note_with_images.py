@@ -1,7 +1,7 @@
 
 
 from hardlink_creator2 import * # to create hard links
-from image_mover_OOP import Note # to extract image references from markdown notes
+from image_mover_OOP import Note, MainLogic
 import os
 
 def to_camel_case(filename: str) -> str:
@@ -11,7 +11,7 @@ def to_camel_case(filename: str) -> str:
     return words[0].lower() + "".join(w.capitalize() for w in words[1:])
 
 def main():
-    print("Hello, World!")
+    root_folder = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
 
     target_files = FileSelector.ask_files("Select files to hard-link")
     if not target_files:
@@ -29,7 +29,6 @@ def main():
         print(f"Note: {note}")
         note_base_dir = os.path.dirname(note)
         image_list = [img for img in images if img.endswith(".png")] # cleaning, images is a set containing garbage strings mixed in
-        #print(f"The images: {images}")
         # assumes the image is in the same directory as the note
         image_paths = [os.path.join(note_base_dir, img) for img in image_list] 
         all_paths = image_paths + [note]
@@ -44,6 +43,9 @@ def main():
 
         creator = HardLinkCreator(note_destination)
         results = creator.link_many(all_paths)
+
+        if images:
+            MainLogic(note, root_folder)  # ← after hard links are created
 
         success = sum(results.values())
         print(f"\nDone: {success}/{len(results)} hard links created.")

@@ -73,7 +73,7 @@ class Note:
         print(f"Found {len(cleaned)} unique images in {self.path.name}")
         return cleaned
     
-def run_for_note(single_note_path: str, root_folder: Union[str, Path]):
+def MainLogic(single_note_path: str, root_folder: Union[str, Path]):
     vault = Vault(root_folder)
     note = Note(single_note_path)
 
@@ -106,7 +106,7 @@ def main():
     #single_note_path = r"C:\MainTechnicalVault_test\Untitled14.md"
     #root_folder = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
     #single_note_path = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault\python script hardlink images.md"
-    run_for_note(
+    MainLogic(
         single_note_path=r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault\Untitled33.md",
         root_folder=r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
     )
