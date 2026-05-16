@@ -4,6 +4,12 @@ from hardlink_creator2 import * # to create hard links
 from image_mover_OOP import Note # to extract image references from markdown notes
 import os
 
+def to_camel_case(filename: str) -> str:
+    """Convert filename (no extension) to camelCase."""
+    name = os.path.splitext(filename)[0]
+    words = name.split()
+    return words[0].lower() + "".join(w.capitalize() for w in words[1:])
+
 def main():
     print("Hello, World!")
 
@@ -17,7 +23,7 @@ def main():
         print("No destination selected. Exiting.")
         return
 
-    for note in target_files:
+    for note in target_files: 
         note_obj = Note(note)
         images = note_obj.extract_images()
         print(f"Note: {note}")
@@ -28,15 +34,20 @@ def main():
         image_paths = [os.path.join(note_base_dir, img) for img in image_list] 
         all_paths = image_paths + [note]
         all_paths = [p for p in all_paths if "\n" not in p] # further cleaning, similar issue as above
-        print(f"Image paths: {all_paths}") 
+        
+        if images:
+            folder_name = to_camel_case(os.path.basename(note))
+            note_destination = os.path.join(destination, folder_name)
+            os.makedirs(note_destination, exist_ok=True)
+        else:
+            note_destination = destination
 
+        creator = HardLinkCreator(note_destination)
+        results = creator.link_many(all_paths)
 
+        success = sum(results.values())
+        print(f"\nDone: {success}/{len(results)} hard links created.")
 
-    creator = HardLinkCreator(destination)
-    results = creator.link_many(all_paths) # this will attempt to hard link the note and all its images
-
-    success = sum(results.values())
-    print(f"\nDone: {success}/{len(results)} hard links created.")
 
 
 if __name__ == "__main__":
