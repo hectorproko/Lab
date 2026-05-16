@@ -1,4 +1,4 @@
-import re
+import re, os
 import shutil
 from pathlib import Path
 from typing import List, Set, Union
@@ -34,13 +34,14 @@ class ImageMover:
     
     def create_destination(self, note_name: str, parent: Path) -> Path:
         """Create a folder for moving images."""
-        default_folder = note_name.replace(" ", "_")
+        #default_folder = note_name.replace(" ", "_")
+        default_folder = to_camel_case(note_name)
         user_input = input(f"Enter folder name [{default_folder}]: ").strip()
         folder_name = user_input or default_folder
 
         target_folder = parent / folder_name
         target_folder.mkdir(parents=True, exist_ok=True)
-        return target_folder
+        return target_folder, folder_name
 
     def find_safe_images(
         self,
@@ -72,7 +73,13 @@ class Note:
         cleaned = {m.strip() for m in matches if m.strip()}
         print(f"Found {len(cleaned)} unique images in {self.path.name}")
         return cleaned
-    
+
+def to_camel_case(filename: str) -> str:
+    """Convert filename (no extension) to camelCase."""
+    name = os.path.splitext(filename)[0]
+    words = name.split()
+    return words[0].lower() + "".join(w.capitalize() for w in words[1:])
+
 def MainLogic(single_note_path: str, root_folder: Union[str, Path]):
     vault = Vault(root_folder)
     note = Note(single_note_path)
@@ -88,7 +95,8 @@ def MainLogic(single_note_path: str, root_folder: Union[str, Path]):
     mover = ImageMover(all_images)
     safe_images = mover.find_safe_images(note_images, other_images)
 
-    destination = mover.create_destination(note.path.stem, note.path.parent)
+    #destination = mover.create_destination(note.path.stem, note.path.parent)
+    destination, folder_name = mover.create_destination(note.path.stem, note.path.parent)
 
     paths_to_move = [
         mover.image_lookup[name]

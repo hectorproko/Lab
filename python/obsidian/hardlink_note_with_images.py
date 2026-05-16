@@ -1,14 +1,8 @@
 
 
 from hardlink_creator2 import * # to create hard links
-from image_mover_OOP import Note, MainLogic
+from image_mover_OOP import Note, MainLogic, to_camel_case
 import os
-
-def to_camel_case(filename: str) -> str:
-    """Convert filename (no extension) to camelCase."""
-    name = os.path.splitext(filename)[0]
-    words = name.split()
-    return words[0].lower() + "".join(w.capitalize() for w in words[1:])
 
 def main():
     root_folder = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
