@@ -41,11 +41,71 @@ class FileSelector:
 
 
 # ─────────────────────────────────────────────
+# NOTE FRONTMATTER — read/write YAML properties
+# ─────────────────────────────────────────────
+
+class NoteFrontmatter:
+    """Read and update YAML frontmatter in markdown files."""
+ 
+    FENCE = "---"
+ 
+    @staticmethod
+    def set_property(file_path: str, key: str, value: str) -> None:
+        """Add or update a key in the file's YAML frontmatter.
+ 
+        If the file has no frontmatter block, one will be created.
+        If the key already exists, its value will be updated.
+ 
+        Args:
+            file_path: Path to the markdown file.
+            key: Frontmatter property name, e.g. "hardlinked".
+            value: Value to set, e.g. "True".
+        """
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+ 
+        new_line = f'{key}: "{value}"'
+ 
+        if content.startswith(NoteFrontmatter.FENCE):
+            # Existing frontmatter — find closing ---
+            end = content.find(f"\n{NoteFrontmatter.FENCE}", 3)
+            if end == -1:
+                # Malformed: no closing fence, just append before end of file
+                content = content.rstrip() + f"\n{new_line}\n"
+            else:
+                frontmatter_body = content[3:end]  # text between the two ---
+ 
+                # Update existing key or append a new one
+                lines = frontmatter_body.splitlines()
+                key_found = False
+                for i, line in enumerate(lines):
+                    if line.startswith(f"{key}:"):
+                        lines[i] = new_line
+                        key_found = True
+                        break
+                if not key_found:
+                    lines.append(new_line)
+ 
+                updated_body = "\n".join(lines)
+                after_fence = content[end + 1 + len(NoteFrontmatter.FENCE):]
+                content = f"{NoteFrontmatter.FENCE}\n{updated_body}\n{NoteFrontmatter.FENCE}{after_fence}"
+        else:
+            # No frontmatter at all — prepend a new block
+            content = f"{NoteFrontmatter.FENCE}\n{new_line}\n{NoteFrontmatter.FENCE}\n{content}"
+ 
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+ 
+        print(f"\033[94mFrontmatter updated: {key} = \"{value}\" → {os.path.basename(file_path)}\033[0m")
+
+# ─────────────────────────────────────────────
 # HARD LINK CREATOR — logic, importable
 # ─────────────────────────────────────────────
 
 class HardLinkCreator:
     """Creates hard links on Windows using mklink."""
+    
+    MARKDOWN_EXTENSIONS = {".md", ".markdown"}
 
     def __init__(self, destination: str):
         """
@@ -70,6 +130,11 @@ class HardLinkCreator:
             command = ["cmd.exe", "/c", "mklink", "/H", link_path, target_file]
             subprocess.run(command, check=True, shell=False)
             print(f"\033[92mHard link created: {link_path}\033[0m")
+
+            ext = os.path.splitext(target_file)[1].lower()
+            if ext in HardLinkCreator.MARKDOWN_EXTENSIONS:
+                NoteFrontmatter.set_property(target_file, "hardlinked", "True")
+
             return True
         except subprocess.CalledProcessError as error:
             print(f"\033[91mFailed to create hard link: {error}\033[0m")
