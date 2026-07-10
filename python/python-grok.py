@@ -7,6 +7,7 @@ load_dotenv()
 
 # Initialize OpenAI client for xAI API
 client = OpenAI(
+client = OpenAI(
     api_key=os.getenv("XAI_API_KEY"),#export this var with api key inside
     base_url="https://api.x.ai/v1"
 )
@@ -17,11 +18,5 @@ try:
         model="grok-beta",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": "Say hello from Grok!"}
+            {"role": "user", "content": "Say hello !"}
         ],
-        temperature=0.7,
-        max_tokens=50
-    )
-    print(response.choices[0].message.content)
-except Exception as e:
-    print(f"Error: {e}")

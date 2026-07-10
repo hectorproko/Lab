@@ -2,6 +2,8 @@ import re, os
 import shutil
 from pathlib import Path
 from typing import List, Set, Union
+import tkinter as tk
+from tkinter import filedialog
 
 class Vault:
     def __init__(self, root_folder: Union[str, Path]):
@@ -36,8 +38,9 @@ class ImageMover:
         """Create a folder for moving images."""
         #default_folder = note_name.replace(" ", "_")
         default_folder = to_camel_case(note_name)
-        user_input = input(f"Enter folder name [{default_folder}]: ").strip()
-        folder_name = user_input or default_folder
+        #user_input = input(f"Enter folder name [{default_folder}]: ").strip()
+        #folder_name = user_input or default_folder
+        folder_name = default_folder
 
         target_folder = parent / folder_name
         target_folder.mkdir(parents=True, exist_ok=True)
@@ -114,11 +117,33 @@ def main():
     #single_note_path = r"C:\MainTechnicalVault_test\Untitled14.md"
     #root_folder = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
     #single_note_path = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault\python script hardlink images.md"
-    MainLogic(
-        single_note_path=r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault\Untitled33.md",
-        root_folder=r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
+    #MainLogic(
+    #    single_note_path=r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault\darey.io\Terraform\Terraform16-19\PART1_PROJECT_16.md",
+    #    root_folder=r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
+    #)
+    ############################################
+    # Configure vault root
+    root_folder = r"C:\Users\Hecti\OneDrive\Obsedian\MainTechnicalVault"
+
+    # Hide the main tkinter root window
+    root = tk.Tk()
+    root.withdraw()
+
+    # Open Windows File Explorer dialog
+    print("Opening file picker...")
+    single_note_path = filedialog.askopenfilename(
+        initialdir=root_folder,  # Start looking inside your vault
+        title="Select Markdown Note",
+        filetypes=[("Markdown files", "*.md"), ("All files", "*.*")],
     )
 
+    # Check if the user actually selected a file or cancelled
+    if not single_note_path:
+        print("No file selected. Exiting.")
+        return
+
+    # Run your main logic with the dynamically chosen file
+    MainLogic(single_note_path=single_note_path, root_folder=root_folder)
 
 if __name__ == "__main__":
     main()
